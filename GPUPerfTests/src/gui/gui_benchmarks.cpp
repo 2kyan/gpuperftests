@@ -298,6 +298,13 @@ test_status GuiBenchmarksRegister(helper_arraylist **list, uint32_t gpu_count) {
     TEST_RETFAIL(_GuiBenchmarksAddBenchmark(gpu_count, section, "bench.uplink.latency.long", "vk_uplink_latency_long", gui_result_type_picoseconds));
     HelperArrayListClean(&labels);
 
+    panel = _GuiBenchmarksNewPanel(gpu_count, "bench.specialinstr.panel", "bench.specialinstr.tooltip");
+    section = _GuiBenchmarksNewSectionSingleResult(gpu_count, panel, "bench.specialinstr.section.mixedmad", "bench.specialinstr.tooltip.mixedmad");
+    TEST_RETFAIL(_GuiBenchmarksAddBenchmark(gpu_count, section, "bench.specialinstr.section.mixedmad", "vk_specialinstr_mixedmad", gui_result_type_flops));
+    section = _GuiBenchmarksNewSectionSingleResult(gpu_count, panel, "bench.specialinstr.section.movs", "bench.specialinstr.tooltip.movs");
+    TEST_RETFAIL(_GuiBenchmarksAddBenchmark(gpu_count, section, "bench.specialinstr.section.movs", "vk_specialinstr_movs", gui_result_type_flops));
+    HelperArrayListClean(&labels);
+
     *list = &gui_panels;
     return TEST_OK;
 }
