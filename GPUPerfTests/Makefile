@@ -18,7 +18,7 @@ BINARY = $(OUT_DIR)/GPUPerfTests
 
 LIBRARY_VULKAN = ../Libraries/Vulkan
 LIBRARY_IMGUI = ../Libraries/imgui-1.88
-LIBRARY_FREETYPE = ../Libraries/freetype-2.12.1
+LIBRARY_FREETYPE = ../Libraries/freetype-2.13.3
 LIBRARY_GLEW = ../Libraries/glew-2.1.0
 LIBRARY_GLFW = ../Libraries/glfw-3.3.2.bin.WIN64
 LIBRARY_LIBSPNG = ../Libraries/libspng-0.7.2
