@@ -1,9 +1,3 @@
-[submodule "Libraries/libspng"]
-	path = Libraries/libspng
-	url = https://github.com/randy408/libspng.git
-[submodule "Libraries/zlib"]
-	path = Libraries/zlib
-	url = https://github.com/madler/zlib.git
 [submodule "Libraries/freetype"]
 	path = Libraries/freetype
 	url = https://github.com/freetype/freetype.git

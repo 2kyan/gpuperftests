@@ -25,6 +25,9 @@
 #ifdef _WIN32
 #include <Windows.h>
 #include <commdlg.h>
+#if !defined(USE_GLEW)
+#define main SDL_main
+#endif 
 #endif
 #include "logger.h"
 #include "helper.h"

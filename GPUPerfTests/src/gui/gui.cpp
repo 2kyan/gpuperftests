@@ -1159,8 +1159,16 @@ test_status GuiRun() {
     float scaling = 0.0f;
 
     int exit = 0;
+    SDL_Event event;
     while (!exit) {
-        SDL_Event event;
+        if (SDL_WaitEventTimeout(&event, 1.0f / (float)GUI_MINIMUM_REFRESHRATE)) {
+            ImGui_ImplSDL3_ProcessEvent(&event);
+            if (event.type == SDL_EVENT_QUIT)
+                exit = true;
+            if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
+                exit = true;
+            
+        }
 
         int width = 0;
         int height = 0;

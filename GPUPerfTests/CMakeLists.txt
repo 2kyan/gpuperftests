@@ -16,7 +16,7 @@ file(GLOB TEXT_SRCS CONFIGURE_DEPENDS ../LICENSE ../*.md)
 
 DisableCompilingSpecificSources(${LANG_SRCS})
 
-add_compile_definitions(-DGLAD_GL_IMPLEMENTATION)
+add_compile_definitions(GLAD_GL_IMPLEMENTATION)
 
 add_custom_target(SPV_SHADER_DIRECTORY ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/embedded_resources
@@ -126,11 +126,10 @@ target_include_directories(${BUILD_TARGET} PRIVATE
 		${CMAKE_CURRENT_BINARY_DIR}/embedded_resources
 )
 
-find_package(ZLIB REQUIRED)
-
 target_link_libraries(${BUILD_TARGET} PRIVATE
 	SDL3::SDL3
 	Vulkan::Vulkan
 	ImGuiFileDialog
-	spng_static
+	spng::spng_static
+	ZLIB::ZLIB
 )

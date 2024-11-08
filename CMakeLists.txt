@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_PROJECT_TOP_LEVEL_INCLUDES cmake/conan_provider.cmake)
+
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12 OR CMAKE_VERSION VERSION_EQUAL 3.12)
@@ -8,9 +10,8 @@ if (CMAKE_VERSION VERSION_GREATER 3.12 OR CMAKE_VERSION VERSION_EQUAL 3.12)
   cmake_policy(SET CMP0074 NEW)
 endif()
 
-add_compile_definitions(-DUNICODE -D_UNICODE)
 
-include(FetchContent)
+add_compile_definitions(UNICODE _UNICODE)
 
 function (DisableCompilingSpecificSources)
    set(options OPTIONAL)
@@ -26,24 +27,12 @@ endfunction()
 project("gpuperftests" C CXX)
 
 find_package(Vulkan REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(SPNG REQUIRED)
 
 include_directories(Libraries)
 
-set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "Enable Zlib Examples")
-add_subdirectory(Libraries/zlib )
-
-set(ZLIB_ROOT Libraries/zlib)
-SET(ZLIB_INCLUDE_DIR ${CMAKE_BINARY_DIR}/Libraries/zlib ${CMAKE_SOURCE_DIR}/Libraries/zlib)
-#SET(ZLIB_LIBRARY zlib)# CACHE STRING "zlib library name")
-
-set(BUILD_EXAMPLES OFF CACHE BOOL "Build examples" )
-set(SPNG_SHARED OFF CACHE BOOL "Build shared libs" )
-
-add_subdirectory(Libraries/libspng EXCLUDE_FROM_ALL)
-include_directories(Libraries/libspng/spng)
-
 add_subdirectory(Libraries/SDL EXCLUDE_FROM_ALL)
-
 
 include_directories(Libraries/imgui)
 include_directories(Libraries/imgui/backends)
