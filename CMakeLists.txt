@@ -1,11 +1,14 @@
 cmake_minimum_required(VERSION 3.22.1)
 
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if (CMAKE_VERSION VERSION_GREATER 3.12 OR CMAKE_VERSION VERSION_EQUAL 3.12)
   # Enable find_package uses of <PackageName>_ROOT variables.
   cmake_policy(SET CMP0074 NEW)
 endif()
 
-ADD_DEFINITIONS(-DUNICODE -D_UNICODE)
+add_compile_definitions(-DUNICODE -D_UNICODE)
 
 include(FetchContent)
 
@@ -22,29 +25,38 @@ endfunction()
 
 project("gpuperftests" C CXX)
 
-set(BUILD_ZLIB_EXAMPLES CACHE BOOL OFF)
-#FetchContent_Declare(
-#    zlib
-#    GIT_REPOSITORY https://github.com/madler/zlib.git
-#    GIT_TAG        v1.3.1
-#)
-#FetchContent_MakeAvailable(zlib)
-add_subdirectory(Libraries/zlib EXCLUDE_FROM_ALL)
+find_package(Vulkan REQUIRED)
+
+include_directories(Libraries)
+
+set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "Enable Zlib Examples")
+add_subdirectory(Libraries/zlib )
 
 set(ZLIB_ROOT Libraries/zlib)
 SET(ZLIB_INCLUDE_DIR ${CMAKE_BINARY_DIR}/Libraries/zlib ${CMAKE_SOURCE_DIR}/Libraries/zlib)
-SET(ZLIB_LIBRARY zlib CACHE STRING "zlib library name")
+#SET(ZLIB_LIBRARY zlib)# CACHE STRING "zlib library name")
 
-set(BUILD_EXAMPLES OFF)
-#FetchContent_Declare(
-#    libspng
-#    GIT_REPOSITORY https://github.com/randy408/libspng
-#    GIT_TAG        v0.7.4
-#)
-#FetchContent_MakeAvailable(libspng)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Build examples" )
+set(SPNG_SHARED OFF CACHE BOOL "Build shared libs" )
+
 add_subdirectory(Libraries/libspng EXCLUDE_FROM_ALL)
-
 include_directories(Libraries/libspng/spng)
+
+add_subdirectory(Libraries/SDL EXCLUDE_FROM_ALL)
+
+
+include_directories(Libraries/imgui)
+include_directories(Libraries/imgui/backends)
+include_directories(Libraries/imgui/misc/freetype)
+
+add_subdirectory(Libraries/ImGuiFileDialog EXCLUDE_FROM_ALL)
+include_directories(Libraries/ImGuiFileDialog)
+
+set(USE_GLFW OFF CACHE BOOL "Use GLFW" FORCE)
+
+if (USE_GLFW)
+   add_compile_definitions(-DUSE_GLFW)
+endif()
 
 set(BUILD_TARGETS AssetBinarizer GPUPerfTests)
 
