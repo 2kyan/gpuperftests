@@ -84,6 +84,8 @@ extern "C" {
 #define TEST_FAILED_TO_SPAWN_TEST_PROCESS                   12
 #define TEST_FAILED_TO_INITIALIZE_GLFW                      13
 #define TEST_FAILED_TO_INITIALIZE_GLEW                      14
+#define TEST_FAILED_TO_INITIALIZE_SDL                       13
+#define TEST_FAILED_TO_INITIALIZE_GLAD                      14
 #define TEST_FAILED_TO_INITIALIZE_IMGUI                     15
 #define TEST_FAILED_TO_CREATE_WINDOW                        16
 #define TEST_FAILED_TO_SPAWN_THREAD                         17

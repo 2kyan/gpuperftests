@@ -30,6 +30,8 @@
 #include "gui/gui_benchmarks.h"
 #include "gui/gui_localization.h"
 #include "tests/test_vk_list.h"
+
+#if defined(USE_GLFW)
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
@@ -37,8 +39,20 @@
 #include <backends/imgui_impl_opengl3.h>
 #include <imgui.h>
 #include <imgui_freetype.h>
-#include <spng.h>
 #include <nfd.h>
+#else
+#include <glad/gl.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <SDL3/SDL_surface.h>
+#include <imgui.h>
+#include <imgui_freetype.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_opengl3.h>
+#include <ImGuiFileDialog/ImGuiFileDialog.h>
+#endif
+
+#include <spng.h>
 #include "gui/gui_formatter.h"
 #include "build_info.h"
 
@@ -417,6 +431,8 @@ static test_status _GuiLoadFormattedText(const char *filename, gui_formatted_str
     return TEST_OK;
 }
 
+
+#ifdef USE_GLFW
 static test_status _GuiSetWindowIcon(GLFWwindow *window, const char *resource_name) {
     const char *icon_data = NULL;
     size_t icon_data_length = 0;
@@ -950,6 +966,638 @@ test_status GuiRun() {
     free((void *)window_title);
     return status;
 }
+
+#else
+
+static test_status _GuiSetWindowIcon(SDL_Window *window, const char *resource_name) {
+    const char *icon_data = NULL;
+    size_t icon_data_length = 0;
+    test_status status = ResourcesGetIconFile(resource_name, &icon_data, &icon_data_length);
+    if (!TEST_SUCCESS(status)) {
+        return TEST_FAILED_TO_LOAD_WINDOW_ICON;
+    }
+
+    uint32_t icon_width = 0;
+    uint32_t icon_height = 0;
+    const char *icon_pixels = HelperDecodePng(icon_data, icon_data_length, SPNG_FMT_RGBA8, &icon_width, &icon_height);
+    if (icon_pixels == NULL) {
+        return TEST_FAILED_TO_DECODE_WINDOW_ICON;
+    }
+
+    uint32_t icon_pitch = icon_width * 4;
+    SDL_Surface * sdl_surface = SDL_CreateSurface(icon_width, icon_height, SDL_PIXELFORMAT_RGBA32);
+
+    sdl_surface = SDL_CreateSurfaceFrom(icon_width, icon_height, SDL_PIXELFORMAT_RGBA32, (void*)icon_pixels, icon_pitch);
+    if (sdl_surface == NULL) {
+        //SDL_GetError();
+        return TEST_OUT_OF_MEMORY;
+    }
+    SDL_SetWindowIcon(window, sdl_surface);
+
+    //GLFWimage glfw_icon;
+    //glfw_icon.width = icon_width;
+    //glfw_icon.height = icon_height;
+    //glfw_icon.pixels = (unsigned char *)icon_pixels;
+    //glfwSetWindowIcon(window, 1, &glfw_icon);
+    free((void *)icon_pixels);
+
+    return TEST_OK;
+}
+
+test_status GuiRun() {
+    gui_benchmark_running = false;
+    gui_exporting = false;
+    gui_about = false;
+    gui_queue_dispatch_counter = 0;
+    test_status status = HelperLinkedListInitialize(&gui_queue);
+    TEST_RETFAIL(status);
+    status = _GuiGetGPUList();
+    TEST_RETFAIL(status);
+    // For now hard-coded to en_US
+    status = GuiLocalizationInitialize("en_US");
+    TEST_RETFAIL(status);
+
+    status = _GuiLoadFormattedText("ABOUT.md", &gui_formatted_text_about);
+    TEST_RETFAIL(status);
+    status = _GuiLoadFormattedText("CHANGELOG.md", &gui_formatted_text_changelog);
+    TEST_RETFAIL(status);
+
+    size_t gpu_count = HelperArrayListSize(&gui_gpus);
+    helper_arraylist *benchmark_panels = NULL;
+    status = GuiBenchmarksRegister(&benchmark_panels, (uint32_t)gpu_count);
+    TEST_RETFAIL(status);
+    size_t panel_count = HelperArrayListSize(benchmark_panels);
+
+    const char *about_section_version_string = NULL;
+    status = HelperPrintToBuffer(&about_section_version_string, NULL, "%u.%u.%u.%s", TEST_VER_MAJOR(TEST_TOOL_VERSION), TEST_VER_MINOR(TEST_TOOL_VERSION), TEST_VER_PATCH(TEST_TOOL_VERSION), BUILD_INFO_IDENTIFIER);
+    if (!TEST_SUCCESS(status)) {
+        return status;
+}
+
+    const char *window_title = NULL;
+#ifdef BUILD_INFO_TYPE_RELEASE
+    status = HelperPrintToBuffer(&window_title, NULL, "GPU Performance Tester %u.%u.%u", TEST_VER_MAJOR(TEST_TOOL_VERSION), TEST_VER_MINOR(TEST_TOOL_VERSION), TEST_VER_PATCH(TEST_TOOL_VERSION));
+#else
+    status = HelperPrintToBuffer(&window_title, NULL, "GPU Performance Tester %u.%u.%u.%s%s", TEST_VER_MAJOR(TEST_TOOL_VERSION), TEST_VER_MINOR(TEST_TOOL_VERSION), TEST_VER_PATCH(TEST_TOOL_VERSION), BUILD_INFO_IDENTIFIER, BUILD_INFO_TYPE_SUFFIX);
+#endif
+    if (!TEST_SUCCESS(status)) {
+        return status;
+    }
+    if (SDL_Init(SDL_INIT_VIDEO) == false) {
+        free((void *)about_section_version_string);
+        free((void *)window_title);
+        return TEST_FAILED_TO_INITIALIZE_SDL;
+    }
+    
+#if defined(ANDROID) || defined(__ANDROID__)
+#if defined(IMGUI_IMPL_OPENGL_ES2)
+    // GL ES 2.0 + GLSL 100
+    const char* glsl_version = "#version 100";
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#elif defined(IMGUI_IMPL_OPENGL_ES3)
+    // GL ES 3.0 + GLSL 300 es
+    const char* glsl_version = "#version 300 es";
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
+#elif defined(__APPLE__)
+    // GL 3.2 Core + GLSL 150
+    const char* glsl_version = "#version 150";
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+#else
+    // GL 3.0 + GLSL 130
+    const char* glsl_version = "#version 130";
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
+    SDL_DisplayID sdl_dpid = SDL_GetPrimaryDisplay();
+    const SDL_DisplayMode *sdl_dpm = SDL_GetDesktopDisplayMode(sdl_dpid);
+    float monitor_scale = sdl_dpm->pixel_density; // Scale the initial window size according to system DPI scaling
+    SDL_Window * window = SDL_CreateWindow(window_title, 
+        (int)(TEST_GUI_DEFAULT_WINDOW_WIDTH * monitor_scale), 
+        (int)(TEST_GUI_DEFAULT_WINDOW_HEIGHT * monitor_scale), 
+        SDL_WINDOW_OPENGL 
+        );
+
+    if (window == NULL) {
+        SDL_Quit();
+        free((void *)about_section_version_string);
+        free((void *)window_title);
+        return TEST_FAILED_TO_CREATE_WINDOW;
+    }
+
+    SDL_GLContext context = SDL_GL_CreateContext(window);
+    SDL_GL_MakeCurrent(window, context);
+    SDL_GL_SetSwapInterval(1);
+
+    int version = gladLoadGL((GLADloadfunc) SDL_GL_GetProcAddress);
+    if (version == 0) {
+        SDL_GL_DestroyContext(context);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        free((void *)about_section_version_string);
+        free((void *)window_title);
+        return TEST_FAILED_TO_INITIALIZE_GLAD;
+    } else {
+        printf("GL %d.%d\n", GLAD_VERSION_MAJOR(version), GLAD_VERSION_MINOR(version));
+    }
+
+#ifdef _DEBUG
+    status = _GuiSetWindowIcon(window, "icon_debug.png");
+#else
+    status = _GuiSetWindowIcon(window, "icon.png");
+#endif
+    if (!TEST_SUCCESS(status)) {
+        SDL_GL_DestroyContext(context);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        free((void *)about_section_version_string);
+        free((void *)window_title);
+        return status;
+    }
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    io.IniFilename = NULL;
+    if (!ImGui_ImplSDL3_InitForOpenGL(window, context)) {
+        ImGui::DestroyContext();
+        SDL_GL_DestroyContext(context);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        free((void *)about_section_version_string);
+        free((void *)window_title);
+        return TEST_FAILED_TO_INITIALIZE_IMGUI;
+    }
+    if (!ImGui_ImplOpenGL3_Init()) {
+        ImGui_ImplSDL3_Shutdown();
+        ImGui::DestroyContext();
+        SDL_GL_DestroyContext(context);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        free((void *)about_section_version_string);
+        free((void *)window_title);
+        return TEST_FAILED_TO_INITIALIZE_IMGUI;
+    }
+    glGenTextures(1, &gui_font_atlas_texture);
+    _GuiInitializeStyle();
+
+    bool render_gui = true;
+    gui_panel *selected_panel = NULL;
+    float scaling = 0.0f;
+
+    int exit = 0;
+    while (!exit) {
+        SDL_Event event;
+
+        int width = 0;
+        int height = 0;
+        bool scaling_changed = false;
+        float prev_scaling = scaling;
+        scaling = SDL_GetWindowDisplayScale(window);
+        if (scaling != prev_scaling) {
+            scaling_changed = true;
+        }
+        if (scaling_changed) {
+            _GuiScaleAndApplyStyle(io, scaling);
+        }
+        if (render_gui) {
+            SDL_GetWindowSize(window, &width, &height);
+            glViewport(0, 0, width, height);
+
+            glClearColor(0, 0, 0, 0);
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplSDL3_NewFrame();
+            ImGui::NewFrame();
+        }
+        
+        if (gui_current_benchmark != NULL) {
+            volatile test_status run_status = gui_current_benchmark->completion_code;
+            if (run_status != TEST_ASYNC_PROCESS_RUNNING) {
+                const char *result_buffer = NULL;
+                gui_cached_benchmark_result_string result_string;
+                memset(&result_string, 0, sizeof(result_string));
+                size_t result_count = HelperArrayListSize(&(gui_current_benchmark->raw_results));
+
+                if (result_count > 0) {
+                    for (size_t i = 0; i < result_count; i++) {
+                        process_runner_keypair *keypair = (process_runner_keypair *)HelperArrayListGet(&(gui_current_benchmark->raw_results), i);
+                        _GuiConvertResult(keypair, &result_buffer, sizeof(result_buffer), gui_current_benchmark->result_type);
+                        result_string.string = result_buffer;
+                        HelperArrayListAdd(&(gui_current_benchmark->results), &result_string, sizeof(result_string), NULL);
+                    }
+                } else if (run_status == TEST_VK_FEATURE_UNSUPPORTED) {
+                    _GuiConvertResult(NULL, &result_buffer, sizeof(result_buffer), gui_result_type_unsupported);
+                    result_string.string = result_buffer;
+                    HelperArrayListAdd(&(gui_current_benchmark->results), &result_string, sizeof(result_string), NULL);
+                } else if (run_status == TEST_PROCESS_KILLED) {
+                    _GuiConvertResult(NULL, &result_buffer, sizeof(result_buffer), gui_result_type_cancelled);
+                    result_string.string = result_buffer;
+                    HelperArrayListAdd(&(gui_current_benchmark->results), &result_string, sizeof(result_string), NULL);
+                } else {
+                    _GuiConvertResult(NULL, &result_buffer, sizeof(result_buffer), gui_result_type_error);
+                    result_string.string = result_buffer;
+                    HelperArrayListAdd(&(gui_current_benchmark->results), &result_string, sizeof(result_string), NULL);
+                }
+                gui_current_benchmark->has_been_run = true;
+                free((void *)gui_current_benchmark->process_handle);
+                gui_current_benchmark = _GuiDequeueBenchmark();
+            }
+        } else {
+            gui_current_benchmark = _GuiDequeueBenchmark();
+        }
+        gui_benchmark_running = gui_current_benchmark != NULL;
+
+        if (render_gui) {
+            ImGuiStyle &style = ImGui::GetStyle();
+            const float sidebar_width = 270 * scaling;
+            const float info_corner_height = 300 * scaling;
+            const float queue_button_width = 65 * scaling;
+            const float tooltip_width = 250 * scaling;
+
+            ImGui::SetNextWindowPos(ImVec2(0, (float)height - info_corner_height));
+            ImGui::SetNextWindowSize(ImVec2(sidebar_width, info_corner_height));
+            ImGui::Begin(_GuiTranslateImGuiString(&gui_string_title_controls), NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoResize);
+            ImGui::Text("%s", GuiLocalizationTranslate(&gui_string_controls_current));
+            ImGui::Text(gui_current_benchmark != NULL ? gui_current_benchmark->test_name : GuiLocalizationTranslate(&gui_string_controls_none), "%s");
+            if (gui_current_benchmark != NULL) {
+                ImGui::SameLine(sidebar_width - style.ItemSpacing.x - queue_button_width - style.ScrollbarSize);
+                if (ImGui::Button(_GuiTranslateImGuiString(&gui_string_controls_cancel), ImVec2(queue_button_width, 0))) {
+                    ProcessRunnerTerminateAsync(gui_current_benchmark->process_handle);
+                }
+            }
+            ImGui::BeginListBox(_GuiTranslateImGuiString(&gui_string_controls_list), ImVec2(-1, ImGui::GetFrameHeight() - 3 * ImGui::GetTextLineHeightWithSpacing()));
+            void *iterator = NULL;
+            for (size_t queue_index = 0; queue_index < HelperLinkedListSize(&gui_queue); queue_index++) {
+                gui_queued_benchmark *benchmark = (gui_queued_benchmark *)HelperLinkedListGet(&gui_queue, queue_index);
+
+                ImGui::Text("%s", benchmark->benchmark->test_name);
+                ImGui::SameLine(sidebar_width - style.ItemSpacing.x - 2 * style.ItemInnerSpacing.x - queue_button_width - style.ScrollbarSize);
+                if (ImGui::Button(_GuiTranslateImGuiStringTestSuffix(&(benchmark->cancel_button), "QueueList", benchmark->sequential_queue_id, 0), ImVec2(queue_button_width, 0))) {
+                    HelperLinkedListRemove(&gui_queue, queue_index);
+                    queue_index--;
+
+                    if (benchmark->cancel_button.imgui_string.imgui_identifier != NULL) {
+                        free((void *)benchmark->cancel_button.imgui_string.imgui_identifier);
+                    }
+                    if (benchmark->cancel_button.imgui_string.string_buffer != NULL) {
+                        free((void *)benchmark->cancel_button.imgui_string.string_buffer);
+                    }
+                    free((void *)benchmark);
+                }
+            }
+            float button_width = (ImGui::GetWindowWidth() - 2 * (style.ItemSpacing.x)) / 3;
+            ImGui::EndListBox();
+            if (ImGui::Button(_GuiTranslateImGuiString(&gui_string_controls_console), ImVec2(button_width, 0))) {
+                MainToggleConsoleWindow();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(_GuiTranslateImGuiString(&gui_string_controls_about), ImVec2(button_width, 0))) {
+                gui_about = true;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(_GuiTranslateImGuiString(&gui_string_controls_export), ImVec2(button_width, 0))) {
+                gui_exporting = true;
+            }
+            ImGui::End();
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::SetNextWindowSize(ImVec2(sidebar_width, (float)height - info_corner_height));
+            ImGui::Begin(_GuiTranslateImGuiString(&gui_string_title_benchmarks), NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoResize);
+
+            ImGui::BeginListBox(_GuiTranslateImGuiString(&gui_string_benchmarks_list), ImVec2(-1, -1));
+            ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
+
+            for (size_t i = 0; i < panel_count; i++) {
+                gui_panel *panel = (gui_panel *)HelperArrayListGet(benchmark_panels, i);
+                
+                if (ImGui::Selectable(_GuiTranslateImGuiString(&(panel->display_name_benchmarklist)), &(panel->selected_in_ui), 0, ImVec2(0, 2.5f * ImGui::GetTextLineHeightWithSpacing()))) {
+                    for (size_t j = 0; j < panel_count; j++) {
+                        if (i == j) {
+                            selected_panel = panel->selected_in_ui ? panel : NULL;
+                        } else {
+                            gui_panel *other_panel = (gui_panel *)HelperArrayListGet(benchmark_panels, j);
+                            other_panel->selected_in_ui = false;
+                        }
+                    }
+                }
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetNextWindowSize(ImVec2(tooltip_width, 0.0f));
+                    ImGui::BeginTooltip();
+                    ImGui::PushTextWrapPos(0.0f);
+                    ImGui::Text("%s", GuiLocalizationTranslate(&(panel->panel_tooltip_description)));
+                    ImGui::EndTooltip();
+                }
+            }
+            ImGui::PopStyleVar();
+            ImGui::EndListBox();
+            ImGui::End();
+            ImGui::SetNextWindowPos(ImVec2(sidebar_width, 0));
+            ImGui::SetNextWindowSize(ImVec2((float)width - sidebar_width, (float)(height)));
+            if (selected_panel != NULL) {
+                ImGui::Begin(_GuiTranslateImGuiString(&(selected_panel->display_name_mainpanel)), NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoResize);
+                size_t section_count = HelperArrayListSize(&(selected_panel->sections));
+                bool tab_selected;
+                if (section_count > 1) {
+                    if (ImGui::BeginTabBar("##SectionTabs", ImGuiTabBarFlags_NoCloseWithMiddleMouseButton)) {
+                        for (size_t i = 0; i < section_count; i++) {
+                            gui_section *section = (gui_section *)HelperArrayListGet(&(selected_panel->sections), i);
+                            tab_selected = ImGui::BeginTabItem(_GuiTranslateImGuiString(&(section->display_name_sectiontab)), NULL, ImGuiTabItemFlags_NoCloseWithMiddleMouseButton);
+                            if (ImGui::IsItemHovered()) {
+                                ImGui::SetNextWindowSize(ImVec2(tooltip_width, 0.0f));
+                                ImGui::BeginTooltip();
+                                ImGui::PushTextWrapPos(0.0f);
+                                ImGui::Text("%s", GuiLocalizationTranslate(&(section->section_tooltip_description)));
+                                ImGui::EndTooltip();
+                            }
+                            if (tab_selected) {
+                                _GuiRenderSection((uint32_t)gpu_count, section);
+                                ImGui::EndTabItem();
+                            }
+                        }
+                        ImGui::EndTabBar();
+                    }
+                } else {
+                    gui_section *section = (gui_section *)HelperArrayListGet(&(selected_panel->sections), 0);
+                    _GuiRenderSection((uint32_t)gpu_count, section);
+                }
+            } else {
+                ImGui::Begin(_GuiTranslateImGuiString(&gui_string_main_none), NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoResize);
+            }
+            ImGui::End();
+
+            if (gui_exporting) {
+                const float window_width = 400 * scaling;
+                const float window_height = height * 0.8f;
+                const float button_width = 80 * scaling;
+
+                ImGui::SetNextWindowPos(ImVec2((width - window_width) / 2, (height - window_height) / 2));
+                ImGui::SetNextWindowSize(ImVec2(window_width, window_height));
+                ImGui::Begin(_GuiTranslateImGuiString(&gui_string_title_export), &gui_exporting, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoResize);
+                ImGui::SetWindowFocus();
+                ImGui::Text("%s", GuiLocalizationTranslate(&gui_string_export_instruct));
+                ImGui::BeginListBox("##BenchmarkSelectionListbox", ImVec2(-1, ImGui::GetFrameHeight() - 3 * ImGui::GetTextLineHeightWithSpacing()));
+                for (size_t i = 0; i < panel_count; i++) {
+                    gui_panel *panel = (gui_panel *)HelperArrayListGet(benchmark_panels, i);
+
+                    ImGui::Checkbox(_GuiTranslateImGuiString(&(panel->display_name_exportcheckbox)), &(panel->selected_for_csv));
+                }
+                ImGui::EndListBox();
+                if (ImGui::Button(_GuiTranslateImGuiString(&gui_string_export_selectall), ImVec2(button_width, 0))) {
+                    for (size_t i = 0; i < panel_count; i++) {
+                        gui_panel *panel = (gui_panel *)HelperArrayListGet(benchmark_panels, i);
+                        panel->selected_for_csv = true;
+                    }
+                }
+                ImGui::SameLine();
+                if (ImGui::Button(_GuiTranslateImGuiString(&gui_string_export_clearall), ImVec2(button_width, 0))) {
+                    for (size_t i = 0; i < panel_count; i++) {
+                        gui_panel *panel = (gui_panel *)HelperArrayListGet(benchmark_panels, i);
+                        panel->selected_for_csv = false;
+                    }
+                }
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 2 * (button_width + style.ItemSpacing.x));
+                if (ImGui::Button(_GuiTranslateImGuiString(&gui_string_export_cancel), ImVec2(button_width, 0))) {
+                    gui_exporting = false;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button(_GuiTranslateImGuiString(&gui_string_export_export), ImVec2(button_width, 0))) {
+                    gui_exporting = false;
+
+                    const char* filters = "CSV File (*.csv){.csv}";
+                    IGFD::FileDialogConfig config;
+                    config.path              = ".";
+                    config.countSelectionMax = 1;
+                    config.userDatas         = IGFDUserDatas("SaveFile");
+                    config.flags                  = ImGuiFileDialogFlags_Default | ImGuiFileDialogFlags_ShowDevicesButton;
+                    ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", "Choose a File", filters, config);
+
+                    if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey"))
+                    {
+                        if (ImGuiFileDialog::Instance()->IsOk())
+                        { // action if OK
+                            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+                            std::string filePath = ImGuiFileDialog::Instance()->GetCurrentPath();
+                            // action
+                            const char* filename = filePathName.c_str();
+                            INFO("Exporting CSV file \"%s\"\n", filename);
+                            void *file = HelperOpenFileForWriting(filename);
+                            if (file != NULL)
+                            {
+                                for (size_t p = 0; p < panel_count; p++)
+                                {
+                                    gui_panel *panel = (gui_panel *)HelperArrayListGet(benchmark_panels, p);
+
+                                    if (panel->selected_for_csv)
+                                    {
+                                        size_t section_count = HelperArrayListSize(&(panel->sections));
+                                        HelperWriteFile(file, "%s,\n", GuiLocalizationTranslate(&(panel->display_name_mainpanel.localized_string)));
+
+                                        for (size_t s = 0; s < section_count; s++)
+                                        {
+                                            gui_section *section = (gui_section *)HelperArrayListGet(&(panel->sections), s);
+
+                                            if (section->benchmark_type == gui_benchmarks_type_single_result)
+                                            {
+                                                size_t test_count = HelperArrayListSize(&(section->benchmarks[0]));
+                                                HelperWriteFile(file, "%s,\n", GuiLocalizationTranslate(&(section->display_name_mainsection.localized_string)));
+                                                HelperWriteFile(file, "GPU,");
+
+                                                for (size_t i = 0; i < test_count; i++)
+                                                {
+                                                    gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[0]), i);
+                                                    HelperWriteFile(file, "%s,", GuiLocalizationTranslate(&(benchmark->display_name)));
+                                                }
+                                                HelperWriteFile(file, "\n");
+                                                for (size_t i = 0; i < gpu_count; i++)
+                                                {
+                                                    gui_gpu *gpu = (gui_gpu *)HelperArrayListGet(&gui_gpus, i);
+                                                    HelperWriteFile(file, "%s,", gpu->display_name);
+
+                                                    for (size_t j = 0; j < test_count; j++)
+                                                    {
+                                                        gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[i]), j);
+                                                        process_runner_keypair *result = NULL;
+                                                        if (benchmark->has_been_run)
+                                                        {
+                                                            result = (process_runner_keypair *)HelperArrayListGet(&(benchmark->raw_results), 0);
+                                                        }
+                                                        HelperWriteFile(file, "%s,", (result == NULL) ? "" : ((strcmp(result->key, "") == 0) ? "N/A" : result->result));
+                                                    }
+                                                    HelperWriteFile(file, "\n");
+                                                }
+                                                HelperWriteFile(file, "\n");
+                                            }
+                                            else
+                                            {
+                                                size_t max_result_count = 0;
+                                                for (uint32_t i = 0; i < gpu_count; i++)
+                                                {
+                                                    gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[i]), 0);
+                                                    if (benchmark->has_been_run)
+                                                    {
+                                                        size_t count = HelperArrayListSize(&(benchmark->raw_results));
+                                                        if (count > max_result_count)
+                                                        {
+                                                            max_result_count = count;
+                                                        }
+                                                    }
+                                                }
+                                                HelperWriteFile(file, "GPU,");
+                                                for (size_t i = 0; i < max_result_count; i++)
+                                                {
+                                                    const char *label = (const char *)HelperArrayListGet(&(section->labels), i);
+                                                    HelperWriteFile(file, "%s,", label);
+                                                }
+                                                HelperWriteFile(file, "\n");
+                                                for (uint32_t i = 0; i < gpu_count; i++)
+                                                {
+                                                    gui_gpu *gpu = (gui_gpu *)HelperArrayListGet(&gui_gpus, i);
+                                                    HelperWriteFile(file, "%s,", gpu->display_name);
+                                                    gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[i]), 0);
+
+                                                    for (size_t j = 0; j < max_result_count; j++)
+                                                    {
+                                                        process_runner_keypair *result = NULL;
+                                                        if (benchmark->has_been_run)
+                                                        {
+                                                            result = (process_runner_keypair *)HelperArrayListGet(&(benchmark->raw_results), j);
+                                                        }
+                                                        HelperWriteFile(file, "%s,", (result == NULL) ? "" : ((strcmp(result->key, "") == 0) ? "N/A" : result->result));
+                                                    }
+                                                    HelperWriteFile(file, "\n");
+                                                }
+                                                HelperWriteFile(file, "\n");
+                                            }
+                                        }
+                                    }
+                                }
+                                HelperCloseFile(file);
+                            }
+                            else
+                            {
+                                WARNING("Failed to create file \"%s\"\n", filename);
+                            }
+                        }
+                        // close
+                        ImGuiFileDialog::Instance()->Close();
+                    }
+                }
+                ImGui::End();
+            }
+            if (gui_about) {
+                const float window_width = 700 * scaling;
+                const float window_height = height * 0.8f;
+                ImGui::SetNextWindowPos(ImVec2((width - window_width) / 2, (height - window_height) / 2));
+                ImGui::SetNextWindowSize(ImVec2(window_width, window_height));
+                ImGui::Begin(_GuiTranslateImGuiString(&gui_string_title_about), &gui_about, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoResize);
+                ImGui::SetWindowFocus();
+
+                if (ImGui::BeginTabBar("##AboutTabs", ImGuiTabBarFlags_NoCloseWithMiddleMouseButton)) {
+                    if (ImGui::BeginTabItem(_GuiTranslateImGuiString(&gui_string_about_about), NULL, ImGuiTabItemFlags_NoCloseWithMiddleMouseButton)) {
+                        GuiFormatterRenderString(gui_formatted_text_about, gui_font_regular, gui_font_bold, gui_font_italics, gui_font_monospace, gui_font_heading);
+                        ImGui::EndTabItem();
+                    }
+                    if (ImGui::BeginTabItem(_GuiTranslateImGuiString(&gui_string_about_changelog), NULL, ImGuiTabItemFlags_NoCloseWithMiddleMouseButton)) {
+                        GuiFormatterRenderString(gui_formatted_text_changelog, gui_font_regular, gui_font_bold, gui_font_italics, gui_font_monospace, gui_font_heading);
+                        ImGui::EndTabItem();
+                    }
+                    if (ImGui::BeginTabItem(_GuiTranslateImGuiString(&gui_string_about_build), NULL, ImGuiTabItemFlags_NoCloseWithMiddleMouseButton)) {
+                        ImGui::PushFont(gui_font_heading);
+                        ImGui::Text("%s", GuiLocalizationTranslate(&gui_string_about_buildinfo_title));
+                        ImGui::PopFont();
+                        ImGui::Separator();
+                        ImGui::Text("%s", GuiLocalizationTranslate(&gui_string_about_buildinfo_version));
+                        ImGui::SameLine();
+                        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - style.WindowPadding.x - ImGui::CalcTextSize(about_section_version_string).x);
+                        ImGui::Text("%s", about_section_version_string);
+                        ImGui::Text("%s", GuiLocalizationTranslate(&gui_string_about_buildinfo_type));
+                        ImGui::SameLine();
+                        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - style.WindowPadding.x - ImGui::CalcTextSize(BUILD_INFO_TYPE_STRING).x);
+                        ImGui::Text(BUILD_INFO_TYPE_STRING);
+                        ImGui::Text("%s", GuiLocalizationTranslate(&gui_string_about_buildinfo_configuration));
+#ifdef _DEBUG
+                        const char *configuration_name = GuiLocalizationTranslate(&gui_string_about_buildinfo_configuration_debug);
+#else
+                        const char *configuration_name = GuiLocalizationTranslate(&gui_string_about_buildinfo_configuration_release);
+#endif
+                        ImGui::SameLine();
+                        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - style.WindowPadding.x - ImGui::CalcTextSize(configuration_name).x);
+                        ImGui::Text("%s", configuration_name);
+                        ImGui::Text("%s", GuiLocalizationTranslate(&gui_string_about_buildinfo_source));
+#ifdef BUILD_INFO_SHA
+                        const char *build_source_string = BUILD_INFO_SHA;
+                        const char *build_branch_string = BUILD_INFO_BRANCH;
+#else
+                        const char *build_source_string = GuiLocalizationTranslate(&gui_string_about_buildinfo_source_local);
+                        const char *build_branch_string = GuiLocalizationTranslate(&gui_string_about_buildinfo_branch_local);
+#endif
+                        ImGui::SameLine();
+                        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - style.WindowPadding.x - ImGui::CalcTextSize(build_source_string).x);
+                        ImGui::Text("%s", build_source_string);
+                        ImGui::Text("%s", GuiLocalizationTranslate(&gui_string_about_buildinfo_branch));
+                        ImGui::SameLine();
+                        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - style.WindowPadding.x - ImGui::CalcTextSize(build_branch_string).x);
+                        ImGui::Text("%s", build_branch_string);
+                        ImGui::EndTabItem();
+                    }
+                    ImGui::EndTabBar();
+                }
+                // Move the close button to the bottom of the window if we don't have a scrollbar yet
+                float button_height = style.ItemSpacing.y + ImGui::GetTextLineHeightWithSpacing();
+                if (ImGui::GetCursorPosY() + button_height < ImGui::GetWindowHeight() - 2 * style.WindowPadding.y) {
+                    ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 2 * style.WindowPadding.y - button_height);
+                }
+                if (ImGui::Button(_GuiTranslateImGuiString(&gui_string_about_close), ImVec2(-1, 0))) {
+                    gui_about = false;
+                }
+                ImGui::End();
+            }
+
+            ImGui::Render();
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+            SDL_GL_SwapWindow(window);
+        }
+        //glfwWaitEventsTimeout(1.0f / (float)GUI_MINIMUM_REFRESHRATE);
+        SDL_WindowFlags flags = SDL_GetWindowFlags(window);
+
+        render_gui = !(flags & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN));
+    }
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext();
+    glDeleteTextures(1, &gui_font_atlas_texture);
+    SDL_GL_DestroyContext(context);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+
+    // Terminate the currently running benchmark if there is one
+    if (gui_current_benchmark != NULL) {
+        ProcessRunnerTerminateAsync(gui_current_benchmark->process_handle);
+        free((void *)gui_current_benchmark->process_handle);
+    }
+    free((void *)about_section_version_string);
+    free((void *)window_title);
+    return status;
+}
+
+#endif
 
 // Modified "CorporateGrey" Theme by malamanteau (https://github.com/ocornut/imgui/issues/707#issuecomment-468798935)
 //#define IMGUI_STYLE_3D
