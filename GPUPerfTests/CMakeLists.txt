@@ -130,6 +130,6 @@ target_link_libraries(${BUILD_TARGET} PRIVATE
 	SDL3::SDL3
 	Vulkan::Vulkan
 	ImGuiFileDialog
-	spng::spng_static
+	spng::spng
 	ZLIB::ZLIB
 )

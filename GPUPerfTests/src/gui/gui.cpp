@@ -49,6 +49,8 @@
 #include <imgui_freetype.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_opengl3.h>
+#undef min
+#undef max
 #include <ImGuiFileDialog/ImGuiFileDialog.h>
 #endif
 
