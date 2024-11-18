@@ -32,39 +32,57 @@ function (DisableCompilingSpecificSources)
    endforeach()
 endfunction()
 
+function(add_executable)
+   string(TOUPPER ${ARGV1} argv1_upper)
+   message(${ARGV}, ${argv1_upper})
+   #set(CMAKE_PDB_OUTPUT_DIRECTORY ${OUTPUT_BINARY_DIR})
+   #set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_BINARY_DIR})
+   _add_executable(${ARGV})
+   if (NOT ${argv1_upper} STREQUAL IMPORTED)
+      add_custom_command(
+         TARGET ${ARGV0}
+         POST_BUILD
+         COMMAND ${CMAKE_COMMAND} -E make_directory ${OUTPUT_BINARY_DIR}/$<CONFIGURATION>/
+         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${ARGV0}> ${OUTPUT_BINARY_DIR}/$<CONFIGURATION>
+      )
+   endif()
+endfunction()
+
 function(add_library)
    string(TOUPPER ${ARGV1} argv1_upper)
    if (${ARGC} GREATER 2)
       string(TOUPPER ${ARGV2} argv2_upper)
    endif()
 
-   set(CMAKE_PDB_OUTPUT_DIRECTORY ${OUTPUT_BINARY_DIR})
-   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_BINARY_DIR})
-   #_add_library(${ARGV})
-   #message(${ARGV}, ${argv1_upper}, ${argv2_upper})
-   if (${argv1_upper} STREQUAL SHARED)
+   #set(CMAKE_PDB_OUTPUT_DIRECTORY ${OUTPUT_BINARY_DIR})
+   #set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_BINARY_DIR})
+   _add_library(${ARGV})
+   message(${ARGV}, ${argv1_upper}, ${argv2_upper})
+   if (${argv1_upper} STREQUAL SHARED OR ${argv1_upper} STREQUAL STATIC)
       if ((${ARGC} LESS 3 OR NOT ${argv2_upper} STREQUAL IMPORTED))
-         #message(${argv1_upper}, ${argv2_upper})
          set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${OUTPUT_BINARY_DIR})
-         #add_custom_command(
-         #      TARGET ${ARGV0}
-         #      POST_BUILD
-         #      COMMAND ${CMAKE_COMMAND} -E make_directory ${OUTPUT_BINARY_DIR}/$<CONFIGURATION>/
-         #      COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${ARGV0}> ${OUTPUT_BINARY_DIR}/$<CONFIGURATION>
-         #)
+         add_custom_command(
+               TARGET ${ARGV0}
+               POST_BUILD
+               COMMAND ${CMAKE_COMMAND} -E make_directory ${OUTPUT_BINARY_DIR}/$<CONFIGURATION>/
+               COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${ARGV0}> ${OUTPUT_BINARY_DIR}/$<CONFIGURATION>/
+               DEPENDS $<TARGET_OBJECTS:${ARGV0}>
+         )
       endif()
    endif()
-   _add_library(${ARGV})
+   #_add_library(${ARGV})
 endfunction()
 
 project("gpuperftests" C CXX)
 
 find_package(Vulkan REQUIRED)
+set(ZLIB_USE_STATIC_LIBS ON)
 find_package(ZLIB REQUIRED)
-find_package(SPNG REQUIRED)
+#find_package(SPNG REQUIRED)
 
 include_directories(Libraries)
 
+add_subdirectory(Libraries/libspng EXCLUDE_FROM_ALL)
 add_subdirectory(Libraries/SDL EXCLUDE_FROM_ALL)
 
 include_directories(Libraries/imgui)
@@ -80,17 +98,6 @@ if (USE_GLFW)
    add_compile_definitions(-DUSE_GLFW)
 endif()
 
-function(add_executable)
-   set(CMAKE_PDB_OUTPUT_DIRECTORY ${OUTPUT_BINARY_DIR})
-   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_BINARY_DIR})
-   _add_executable(${ARGV})
-   #add_custom_command(
-   #   TARGET ${ARGV0}
-   #   POST_BUILD
-   #   COMMAND ${CMAKE_COMMAND} -E make_directory ${OUTPUT_BINARY_DIR}/$<CONFIGURATION>/
-   #   COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${ARGV0}> ${OUTPUT_BINARY_DIR}/$<CONFIGURATION>
-   #)
-endfunction()
 
 set(BUILD_TARGETS AssetBinarizer GPUPerfTests)
 

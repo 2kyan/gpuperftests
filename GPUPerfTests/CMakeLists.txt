@@ -127,9 +127,9 @@ target_include_directories(${BUILD_TARGET} PRIVATE
 )
 
 target_link_libraries(${BUILD_TARGET} PRIVATE
+	ZLIB::ZLIB
 	SDL3::SDL3
 	Vulkan::Vulkan
 	ImGuiFileDialog
-	spng::spng_static
-	ZLIB::ZLIB
+	spng
 )

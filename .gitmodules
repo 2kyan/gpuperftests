@@ -10,3 +10,6 @@
 [submodule "Libraries/ImGuiFileDialog"]
 	path = Libraries/ImGuiFileDialog
 	url = https://github.com/aiekick/ImGuiFileDialog.git
+[submodule "Libraries/libspng"]
+	path = Libraries/libspng
+	url = https://github.com/randy408/libspng.git

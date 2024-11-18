@@ -1094,11 +1094,12 @@ test_status GuiRun() {
         );
 
     if (window == NULL) {
+        printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
         SDL_Quit();
         free((void *)about_section_version_string);
         free((void *)window_title);
         return TEST_FAILED_TO_CREATE_WINDOW;
-    }
+    } 
 
     SDL_GLContext context = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, context);
