@@ -220,7 +220,7 @@ test_status VulkanShaderCreateDescriptorSets(vulkan_shader *shader_handle) {
         }
         pipeline_layout_create_info.pSetLayouts = shader_handle->descriptor_set_layouts;
     } else {
-        TRACE_SHADER("Creating empty pipeline layout\n");
+        TRACE_SHADER("%s", "Creating empty pipeline layout\n");
         shader_handle->descriptor_set_layouts = NULL;
         pipeline_layout_create_info.pSetLayouts = NULL;
     }

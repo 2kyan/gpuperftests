@@ -28,6 +28,10 @@ static const char *_vulkan_validation_layers[] = {
     "VK_LAYER_KHRONOS_validation"
 };
 
+static const char *_vulkan_portable_extensions[] = {
+    VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+};
+
 static const char *_vulkan_debug_extensions[] = {
     VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
     VK_EXT_DEBUG_REPORT_EXTENSION_NAME
@@ -54,12 +58,26 @@ test_status VulkanCreateInstance(bool graphical, const char *test_name, uint32_t
 
     VkInstanceCreateInfo instance_create_info = {0};
     instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+#if defined __APPLE__
+    instance_create_info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
     instance_create_info.pApplicationInfo = &application_info;
 
     /* GET REQUIRED EXTENSIONS */
     helper_arraylist required_extensions = {0};
     status = HelperArrayListInitialize(&required_extensions, sizeof(const char *));
     TEST_RETFAIL(status);
+    
+#if defined __APPLE__
+    for (uint32_t i = 0; i < (sizeof(_vulkan_portable_extensions) / sizeof(const char *)); i++) {
+        status = HelperArrayListAdd(&required_extensions, &(_vulkan_portable_extensions[i]), sizeof(_vulkan_portable_extensions[i]), NULL);
+        if (!TEST_SUCCESS(status)) {
+            HelperArrayListClean(&required_extensions);
+            return status;
+        }
+    }
+#endif
+    
     if (graphical) {
         /* Get GLFW extensions */
     }

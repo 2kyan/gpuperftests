@@ -104,7 +104,9 @@ static const char *_ProcessRunnerReadLine(char *buffer, int max_count, int file,
         struct pollfd poller = {file, POLLIN};
         int rval = poll(&poller, 1, -1);
         size_t read_data = 0;
-        if ((poller.revents & POLLIN) != 0) {
+        if ((poller.revents & POLLHUP) != 0) {
+            return NULL;
+        } else if ((poller.revents & POLLIN) != 0) {
             read_data = read(file, buffer + char_index, max_read);
         } else {
             return NULL;
