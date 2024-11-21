@@ -67,6 +67,7 @@ static helper_linkedlist gui_queue;
 static gui_benchmark *gui_current_benchmark;
 static bool gui_benchmark_running;
 static bool gui_exporting;
+static bool gui_exporting_dlg;
 static bool gui_about;
 static GLuint gui_font_atlas_texture = 0;
 static ImGuiStyle gui_default_style;
@@ -1009,6 +1010,7 @@ static test_status _GuiSetWindowIcon(SDL_Window *window, const char *resource_na
 test_status GuiRun() {
     gui_benchmark_running = false;
     gui_exporting = false;
+    gui_exporting_dlg = false;
     gui_about = false;
     gui_queue_dispatch_counter = 0;
     test_status status = HelperLinkedListInitialize(&gui_queue);
@@ -1388,128 +1390,142 @@ test_status GuiRun() {
                 ImGui::SameLine();
                 if (ImGui::Button(_GuiTranslateImGuiString(&gui_string_export_export), ImVec2(button_width, 0))) {
                     gui_exporting = false;
-
-                    const char* filters = "CSV File (*.csv){.csv}";
-                    IGFD::FileDialogConfig config;
-                    config.path              = ".";
-                    config.countSelectionMax = 1;
-                    config.userDatas         = IGFDUserDatas("SaveFile");
-                    config.flags                  = ImGuiFileDialogFlags_Default | ImGuiFileDialogFlags_ShowDevicesButton;
-                    ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", "Choose a File", filters, config);
-
-                    if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey"))
-                    {
-                        if (ImGuiFileDialog::Instance()->IsOk())
-                        { // action if OK
-                            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-                            std::string filePath = ImGuiFileDialog::Instance()->GetCurrentPath();
-                            // action
-                            const char* filename = filePathName.c_str();
-                            INFO("Exporting CSV file \"%s\"\n", filename);
-                            void *file = HelperOpenFileForWriting(filename);
-                            if (file != NULL)
+                    gui_exporting_dlg = true;
+                }
+                ImGui::End();
+                
+            }
+            
+            if (gui_exporting_dlg) {
+                const char* filters = "CSV File (*.csv){.csv}";
+                IGFD::FileDialogConfig config;
+                config.path              = ".";
+                config.countSelectionMax = 1;
+                config.userDatas         = IGFDUserDatas("SaveFile");
+                config.flags             = ImGuiFileDialogFlags_Default | ImGuiFileDialogFlags_ShowDevicesButton;
+                ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", "Choose a File", filters, config);
+                
+                ImVec2 minSize = ImVec2(400 * scaling, 300 * scaling);
+                
+                if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize))
+                {
+                    if (ImGuiFileDialog::Instance()->IsOk())
+                    { // action if OK
+                        std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+                        std::string filePath = ImGuiFileDialog::Instance()->GetCurrentPath();
+                        // action
+                        const char* filename = filePathName.c_str();
+                        INFO("Exporting CSV file \"%s\"\n", filename);
+                        void *file = HelperOpenFileForWriting(filename);
+                        if (file != NULL)
+                        {
+                            for (size_t p = 0; p < panel_count; p++)
                             {
-                                for (size_t p = 0; p < panel_count; p++)
+                                gui_panel *panel = (gui_panel *)HelperArrayListGet(benchmark_panels, p);
+
+                                if (panel->selected_for_csv)
                                 {
-                                    gui_panel *panel = (gui_panel *)HelperArrayListGet(benchmark_panels, p);
+                                    size_t section_count = HelperArrayListSize(&(panel->sections));
+                                    HelperWriteFile(file, "%s,\n", GuiLocalizationTranslate(&(panel->display_name_mainpanel.localized_string)));
 
-                                    if (panel->selected_for_csv)
+                                    for (size_t s = 0; s < section_count; s++)
                                     {
-                                        size_t section_count = HelperArrayListSize(&(panel->sections));
-                                        HelperWriteFile(file, "%s,\n", GuiLocalizationTranslate(&(panel->display_name_mainpanel.localized_string)));
+                                        gui_section *section = (gui_section *)HelperArrayListGet(&(panel->sections), s);
 
-                                        for (size_t s = 0; s < section_count; s++)
+                                        if (section->benchmark_type == gui_benchmarks_type_single_result)
                                         {
-                                            gui_section *section = (gui_section *)HelperArrayListGet(&(panel->sections), s);
+                                            size_t test_count = HelperArrayListSize(&(section->benchmarks[0]));
+                                            HelperWriteFile(file, "%s,\n", GuiLocalizationTranslate(&(section->display_name_mainsection.localized_string)));
+                                            HelperWriteFile(file, "GPU,");
 
-                                            if (section->benchmark_type == gui_benchmarks_type_single_result)
+                                            for (size_t i = 0; i < test_count; i++)
                                             {
-                                                size_t test_count = HelperArrayListSize(&(section->benchmarks[0]));
-                                                HelperWriteFile(file, "%s,\n", GuiLocalizationTranslate(&(section->display_name_mainsection.localized_string)));
-                                                HelperWriteFile(file, "GPU,");
-
-                                                for (size_t i = 0; i < test_count; i++)
-                                                {
-                                                    gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[0]), i);
-                                                    HelperWriteFile(file, "%s,", GuiLocalizationTranslate(&(benchmark->display_name)));
-                                                }
-                                                HelperWriteFile(file, "\n");
-                                                for (size_t i = 0; i < gpu_count; i++)
-                                                {
-                                                    gui_gpu *gpu = (gui_gpu *)HelperArrayListGet(&gui_gpus, i);
-                                                    HelperWriteFile(file, "%s,", gpu->display_name);
-
-                                                    for (size_t j = 0; j < test_count; j++)
-                                                    {
-                                                        gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[i]), j);
-                                                        process_runner_keypair *result = NULL;
-                                                        if (benchmark->has_been_run)
-                                                        {
-                                                            result = (process_runner_keypair *)HelperArrayListGet(&(benchmark->raw_results), 0);
-                                                        }
-                                                        HelperWriteFile(file, "%s,", (result == NULL) ? "" : ((strcmp(result->key, "") == 0) ? "N/A" : result->result));
-                                                    }
-                                                    HelperWriteFile(file, "\n");
-                                                }
-                                                HelperWriteFile(file, "\n");
+                                                gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[0]), i);
+                                                HelperWriteFile(file, "%s,", GuiLocalizationTranslate(&(benchmark->display_name)));
                                             }
-                                            else
+                                            HelperWriteFile(file, "\n");
+                                            for (size_t i = 0; i < gpu_count; i++)
                                             {
-                                                size_t max_result_count = 0;
-                                                for (uint32_t i = 0; i < gpu_count; i++)
+                                                gui_gpu *gpu = (gui_gpu *)HelperArrayListGet(&gui_gpus, i);
+                                                HelperWriteFile(file, "%s,", gpu->display_name);
+
+                                                for (size_t j = 0; j < test_count; j++)
                                                 {
-                                                    gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[i]), 0);
+                                                    gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[i]), j);
+                                                    process_runner_keypair *result = NULL;
                                                     if (benchmark->has_been_run)
                                                     {
-                                                        size_t count = HelperArrayListSize(&(benchmark->raw_results));
-                                                        if (count > max_result_count)
-                                                        {
-                                                            max_result_count = count;
-                                                        }
+                                                        result = (process_runner_keypair *)HelperArrayListGet(&(benchmark->raw_results), 0);
                                                     }
-                                                }
-                                                HelperWriteFile(file, "GPU,");
-                                                for (size_t i = 0; i < max_result_count; i++)
-                                                {
-                                                    const char *label = (const char *)HelperArrayListGet(&(section->labels), i);
-                                                    HelperWriteFile(file, "%s,", label);
-                                                }
-                                                HelperWriteFile(file, "\n");
-                                                for (uint32_t i = 0; i < gpu_count; i++)
-                                                {
-                                                    gui_gpu *gpu = (gui_gpu *)HelperArrayListGet(&gui_gpus, i);
-                                                    HelperWriteFile(file, "%s,", gpu->display_name);
-                                                    gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[i]), 0);
-
-                                                    for (size_t j = 0; j < max_result_count; j++)
-                                                    {
-                                                        process_runner_keypair *result = NULL;
-                                                        if (benchmark->has_been_run)
-                                                        {
-                                                            result = (process_runner_keypair *)HelperArrayListGet(&(benchmark->raw_results), j);
-                                                        }
-                                                        HelperWriteFile(file, "%s,", (result == NULL) ? "" : ((strcmp(result->key, "") == 0) ? "N/A" : result->result));
-                                                    }
-                                                    HelperWriteFile(file, "\n");
+                                                    HelperWriteFile(file, "%s,", (result == NULL) ? "" : ((strcmp(result->key, "") == 0) ? "N/A" : result->result));
                                                 }
                                                 HelperWriteFile(file, "\n");
                                             }
+                                            HelperWriteFile(file, "\n");
+                                        }
+                                        else
+                                        {
+                                            size_t max_result_count = 0;
+                                            for (uint32_t i = 0; i < gpu_count; i++)
+                                            {
+                                                gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[i]), 0);
+                                                if (benchmark->has_been_run)
+                                                {
+                                                    size_t count = HelperArrayListSize(&(benchmark->raw_results));
+                                                    if (count > max_result_count)
+                                                    {
+                                                        max_result_count = count;
+                                                    }
+                                                }
+                                            }
+                                            HelperWriteFile(file, "GPU,");
+                                            for (size_t i = 0; i < max_result_count; i++)
+                                            {
+                                                const char *label = (const char *)HelperArrayListGet(&(section->labels), i);
+                                                HelperWriteFile(file, "%s,", label);
+                                            }
+                                            HelperWriteFile(file, "\n");
+                                            for (uint32_t i = 0; i < gpu_count; i++)
+                                            {
+                                                gui_gpu *gpu = (gui_gpu *)HelperArrayListGet(&gui_gpus, i);
+                                                HelperWriteFile(file, "%s,", gpu->display_name);
+                                                gui_benchmark *benchmark = (gui_benchmark *)HelperArrayListGet(&(section->benchmarks[i]), 0);
+
+                                                for (size_t j = 0; j < max_result_count; j++)
+                                                {
+                                                    process_runner_keypair *result = NULL;
+                                                    if (benchmark->has_been_run)
+                                                    {
+                                                        result = (process_runner_keypair *)HelperArrayListGet(&(benchmark->raw_results), j);
+                                                    }
+                                                    HelperWriteFile(file, "%s,", (result == NULL) ? "" : ((strcmp(result->key, "") == 0) ? "N/A" : result->result));
+                                                }
+                                                HelperWriteFile(file, "\n");
+                                            }
+                                            HelperWriteFile(file, "\n");
                                         }
                                     }
                                 }
-                                HelperCloseFile(file);
                             }
-                            else
-                            {
-                                WARNING("Failed to create file \"%s\"\n", filename);
-                            }
+                            HelperCloseFile(file);
+                            
                         }
-                        // close
-                        ImGuiFileDialog::Instance()->Close();
+                        else
+                        {
+                            WARNING("Failed to create file \"%s\"\n", filename);
+                        }
+                        gui_exporting_dlg = false;
+                    } else {
+                        gui_exporting_dlg = false;
                     }
+                    
+                    
+                    // close
+                    ImGuiFileDialog::Instance()->Close();
                 }
-                ImGui::End();
             }
+            
+            
             if (gui_about) {
                 const float window_width = 700 * scaling;
                 const float window_height = height * 0.8f;
