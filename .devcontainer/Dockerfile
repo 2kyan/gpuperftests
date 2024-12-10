@@ -14,13 +14,17 @@ RUN apt-get -y build-dep mesa
 RUN apt-get -y install cmake cppcheck valgrind clang lldb llvm gdb \
     vulkan-tools glslang-tools glslc libvulkan-dev libgl1-mesa-dev libgles2-mesa-dev
 
+RUN apt-get -y install pipx
+
 RUN apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
-ADD https://github.com/conan-io/conan/releases/download/${CONAN_VERSION}/conan-${CONAN_VERSION}-amd64.deb /tmp
+#ADD https://github.com/conan-io/conan/releases/download/${CONAN_VERSION}/conan-${CONAN_VERSION}-amd64.deb /tmp
 
-RUN dpkg -i /tmp/conan-${CONAN_VERSION}-amd64.deb && rm -f conan-${CONAN_VERSION}-amd64.deb
+#RUN dpkg -i /tmp/conan-${CONAN_VERSION}-amd64.deb && rm -f conan-${CONAN_VERSION}-amd64.deb
 
 USER vscode
+
+RUN pipx install conan
 
 #RUN pip install conan --break-system-packages
 
