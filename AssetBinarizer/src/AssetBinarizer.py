@@ -39,11 +39,6 @@ def sanitize_file(content: bytes) -> str:
 
     return ''.join(result_data)
 
-# Example usage:
-content = b"Hello, world!"
-sanitized = sanitize_file(content)
-print(sanitized)
-
 def read_file(filepath, verbose=False):
     try:
         with open(filepath, 'rb') as file:
