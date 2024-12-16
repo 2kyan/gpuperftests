@@ -608,6 +608,8 @@ uint32_t HelperGetProcessorCount() {
     GetSystemInfo(&system_info);
 
     return (uint32_t)system_info.dwNumberOfProcessors;
+#elif __ANDROID__
+    return sysconf(_SC_NPROCESSORS_ONLN);
 #elif __linux
     cpu_set_t cpu_set;
     HelperClear(cpu_set);
