@@ -109,32 +109,58 @@ source_group(gen FILES ${SPV_SHADER_SRCS})
 source_group(embedded_resources FILES ${EMBED_SRCS})
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SRCS} ${LANG_SRCS} ${SHADER_SRCS})
 
-add_executable(${BUILD_TARGET}
-        ${SRCS}
-        ${SPV_SHADER_SRCS}
-        ${EMBED_SRCS}
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui.cpp
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_draw.cpp
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_tables.cpp
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_widgets.cpp
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_sdl3.cpp
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_opengl3.cpp
-)
+if (ANDROID)
+	add_library(${BUILD_TARGET} SHARED
+			${SRCS}
+			${SPV_SHADER_SRCS}
+			${EMBED_SRCS}
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_draw.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_tables.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_widgets.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_android.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_sdl3.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_opengl3.cpp
+	)
 
-#target_compile_definitions(${BUILD_TARGET} PRIVATE
-#        IMGUI_IMPL_OPENGL_ES3
-#)
+	target_compile_definitions(${BUILD_TARGET} PRIVATE
+			IMGUI_IMPL_OPENGL_ES3
+	)
+
+	target_link_libraries(${BUILD_TARGET} PRIVATE
+			ZLIB::ZLIB
+			SDL3::SDL3
+			android
+			EGL
+			GLESv3
+			Vulkan::Vulkan
+			ImGuiFileDialog
+			spng
+	)
+else()
+	add_executable(${BUILD_TARGET}
+			${SRCS}
+			${SPV_SHADER_SRCS}
+			${EMBED_SRCS}
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_draw.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_tables.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_widgets.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_sdl3.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_opengl3.cpp
+	)
+
+	target_link_libraries(${BUILD_TARGET} PRIVATE
+			ZLIB::ZLIB
+			SDL3::SDL3
+			Vulkan::Vulkan
+			ImGuiFileDialog
+			spng
+	)
+endif()
 
 target_include_directories(${BUILD_TARGET} PRIVATE
         include/
         ${Vulkan_INCLUDE_DIRS}
 		${CMAKE_CURRENT_BINARY_DIR}/embedded_resources
-)
-
-target_link_libraries(${BUILD_TARGET} PRIVATE
-	ZLIB::ZLIB
-	SDL3::SDL3
-	Vulkan::Vulkan
-	ImGuiFileDialog
-	spng
 )
