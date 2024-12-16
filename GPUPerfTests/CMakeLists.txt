@@ -51,7 +51,8 @@ add_custom_command(
 	COMMENT "Custom Build: embeded_fonts"
 	OUTPUT ${output_filename}
 	DEPENDS ${FONT_SRCS} ${AssetBinarizer} ${EMBEDDED_RESOURCES_DIRECTORY}
-	COMMAND $<TARGET_FILE:AssetBinarizer>
+	#COMMAND $<TARGET_FILE:AssetBinarizer>
+	COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/AssetBinarizer.py
 	ARGS -v -o ${output_filename} ${FONT_SRCS}
 )
 
@@ -60,7 +61,8 @@ add_custom_command(
 	COMMENT "Custom Build: embeded_icons"
 	OUTPUT ${output_filename}
 	DEPENDS ${ICON_SRCS} ${AssetBinarizer} ${EMBEDDED_RESOURCES_DIRECTORY}
-	COMMAND $<TARGET_FILE:AssetBinarizer>
+	#COMMAND $<TARGET_FILE:AssetBinarizer>
+	COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/AssetBinarizer.py
 	ARGS -v -o ${output_filename} ${ICON_SRCS}
 )
 
@@ -69,7 +71,8 @@ add_custom_command(
 	COMMENT "Custom Build: embedded_languages"
 	OUTPUT ${output_filename}
 	DEPENDS ${LANG_SRCS} ${AssetBinarizer} ${EMBEDDED_RESOURCES_DIRECTORY}
-	COMMAND $<TARGET_FILE:AssetBinarizer>
+	#COMMAND $<TARGET_FILE:AssetBinarizer>
+	COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/AssetBinarizer.py
 	ARGS -v -o ${output_filename} ${LANG_SRCS}
 )
 
@@ -78,7 +81,8 @@ add_custom_command(
 	COMMENT "Custom Build: embeded_shaders"
 	OUTPUT ${output_filename}
 	DEPENDS ${SPV_SHADER_SRCS} ${AssetBinarizer} ${EMBEDDED_RESOURCES_DIRECTORY}
-	COMMAND $<TARGET_FILE:AssetBinarizer>
+	#COMMAND $<TARGET_FILE:AssetBinarizer>
+	COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/AssetBinarizer.py
 	ARGS -v -o ${output_filename} ${SPV_SHADER_SRCS}
 )
 
@@ -87,7 +91,8 @@ add_custom_command(
 	COMMENT "Custom Build: embded_texts"
 	OUTPUT ${output_filename}
 	DEPENDS ${TEXT_SRCS} ${AssetBinarizer} ${EMBEDDED_RESOURCES_DIRECTORY}
-	COMMAND $<TARGET_FILE:AssetBinarizer>
+	#COMMAND $<TARGET_FILE:AssetBinarizer>
+	COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/AssetBinarizer.py
 	ARGS -v -o ${output_filename} ${TEXT_SRCS}
 )
 
