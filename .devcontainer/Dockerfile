@@ -1,3 +1,7 @@
+# https://containers.dev/features & https://github.com/devcontainers/features
+# https://github.com/devcontainers/images
+# 
+
 ARG VARIANT=debian-12
 FROM mcr.microsoft.com/devcontainers/base:${VARIANT}
 
