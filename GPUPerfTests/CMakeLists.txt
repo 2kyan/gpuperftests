@@ -51,7 +51,8 @@ add_custom_command(
 	COMMENT "Custom Build: embeded_fonts"
 	OUTPUT ${output_filename}
 	DEPENDS ${FONT_SRCS} ${AssetBinarizer} ${EMBEDDED_RESOURCES_DIRECTORY}
-	COMMAND $<TARGET_FILE:AssetBinarizer>
+	#COMMAND $<TARGET_FILE:AssetBinarizer>
+	COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/AssetBinarizer.py
 	ARGS -v -o ${output_filename} ${FONT_SRCS}
 )
 
@@ -60,7 +61,8 @@ add_custom_command(
 	COMMENT "Custom Build: embeded_icons"
 	OUTPUT ${output_filename}
 	DEPENDS ${ICON_SRCS} ${AssetBinarizer} ${EMBEDDED_RESOURCES_DIRECTORY}
-	COMMAND $<TARGET_FILE:AssetBinarizer>
+	#COMMAND $<TARGET_FILE:AssetBinarizer>
+	COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/AssetBinarizer.py
 	ARGS -v -o ${output_filename} ${ICON_SRCS}
 )
 
@@ -69,7 +71,8 @@ add_custom_command(
 	COMMENT "Custom Build: embedded_languages"
 	OUTPUT ${output_filename}
 	DEPENDS ${LANG_SRCS} ${AssetBinarizer} ${EMBEDDED_RESOURCES_DIRECTORY}
-	COMMAND $<TARGET_FILE:AssetBinarizer>
+	#COMMAND $<TARGET_FILE:AssetBinarizer>
+	COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/AssetBinarizer.py
 	ARGS -v -o ${output_filename} ${LANG_SRCS}
 )
 
@@ -78,7 +81,8 @@ add_custom_command(
 	COMMENT "Custom Build: embeded_shaders"
 	OUTPUT ${output_filename}
 	DEPENDS ${SPV_SHADER_SRCS} ${AssetBinarizer} ${EMBEDDED_RESOURCES_DIRECTORY}
-	COMMAND $<TARGET_FILE:AssetBinarizer>
+	#COMMAND $<TARGET_FILE:AssetBinarizer>
+	COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/AssetBinarizer.py
 	ARGS -v -o ${output_filename} ${SPV_SHADER_SRCS}
 )
 
@@ -87,7 +91,8 @@ add_custom_command(
 	COMMENT "Custom Build: embded_texts"
 	OUTPUT ${output_filename}
 	DEPENDS ${TEXT_SRCS} ${AssetBinarizer} ${EMBEDDED_RESOURCES_DIRECTORY}
-	COMMAND $<TARGET_FILE:AssetBinarizer>
+	#COMMAND $<TARGET_FILE:AssetBinarizer>
+	COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/AssetBinarizer.py
 	ARGS -v -o ${output_filename} ${TEXT_SRCS}
 )
 
@@ -104,32 +109,58 @@ source_group(gen FILES ${SPV_SHADER_SRCS})
 source_group(embedded_resources FILES ${EMBED_SRCS})
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SRCS} ${LANG_SRCS} ${SHADER_SRCS})
 
-add_executable(${BUILD_TARGET}
-        ${SRCS}
-        ${SPV_SHADER_SRCS}
-        ${EMBED_SRCS}
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui.cpp
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_draw.cpp
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_tables.cpp
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_widgets.cpp
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_sdl3.cpp
-		${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_opengl3.cpp
-)
+if (ANDROID)
+	add_library(${BUILD_TARGET} SHARED
+			${SRCS}
+			${SPV_SHADER_SRCS}
+			${EMBED_SRCS}
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_draw.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_tables.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_widgets.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_android.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_sdl3.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_opengl3.cpp
+	)
 
-#target_compile_definitions(${BUILD_TARGET} PRIVATE
-#        IMGUI_IMPL_OPENGL_ES3
-#)
+	target_compile_definitions(${BUILD_TARGET} PRIVATE
+			IMGUI_IMPL_OPENGL_ES3
+	)
+
+	target_link_libraries(${BUILD_TARGET} PRIVATE
+			ZLIB::ZLIB
+			SDL3::SDL3
+			android
+			EGL
+			GLESv3
+			Vulkan::Vulkan
+			ImGuiFileDialog
+			spng
+	)
+else()
+	add_executable(${BUILD_TARGET}
+			${SRCS}
+			${SPV_SHADER_SRCS}
+			${EMBED_SRCS}
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_draw.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_tables.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/imgui_widgets.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_sdl3.cpp
+			${PROJECT_SOURCE_DIR}/Libraries/imgui/backends/imgui_impl_opengl3.cpp
+	)
+
+	target_link_libraries(${BUILD_TARGET} PRIVATE
+			ZLIB::ZLIB
+			SDL3::SDL3
+			Vulkan::Vulkan
+			ImGuiFileDialog
+			spng
+	)
+endif()
 
 target_include_directories(${BUILD_TARGET} PRIVATE
         include/
         ${Vulkan_INCLUDE_DIRS}
 		${CMAKE_CURRENT_BINARY_DIR}/embedded_resources
-)
-
-target_link_libraries(${BUILD_TARGET} PRIVATE
-	ZLIB::ZLIB
-	SDL3::SDL3
-	Vulkan::Vulkan
-	ImGuiFileDialog
-	spng
 )
